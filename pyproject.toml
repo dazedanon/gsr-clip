@@ -28,4 +28,4 @@ gsr-clip-gui = "gsr_clip.gui:main"
 packages = ["gsr_clip"]
 
 [tool.setuptools.package-data]
-gsr_clip = ["web/*.html", "web/*.css", "web/*.js"]
+gsr_clip = ["web/*.html", "web/*.css", "web/*.js", "assets/*.svg"]

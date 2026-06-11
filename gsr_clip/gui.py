@@ -16,6 +16,7 @@ from pathlib import Path
 
 try:
     from PySide6.QtCore import Qt, QTimer
+    from PySide6.QtGui import QIcon
     from PySide6.QtWidgets import (
         QApplication,
         QCheckBox,
@@ -27,9 +28,11 @@ try:
         QLabel,
         QLineEdit,
         QMainWindow,
+        QMenu,
         QMessageBox,
         QPushButton,
         QSpinBox,
+        QSystemTrayIcon,
         QTabWidget,
         QVBoxLayout,
         QWidget,
@@ -47,6 +50,14 @@ from .config import CONFIG_PATH, Config, load_config, save_config
 
 SERVICE = "gsr-clip.service"
 VIEWER_PORT = 8723
+ASSETS = Path(__file__).parent / "assets"
+
+
+def app_icon() -> QIcon:
+    svg = ASSETS / "icon.svg"
+    if svg.exists():
+        return QIcon(str(svg))
+    return QIcon.fromTheme("media-record")
 
 
 def _systemctl(*args: str) -> subprocess.CompletedProcess:
@@ -66,12 +77,16 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("gsr-clip")
+        self.setWindowIcon(app_icon())
         self.setMinimumWidth(520)
         self._viewer: subprocess.Popen | None = None
+        self._force_quit = False
+        self.tray: QSystemTrayIcon | None = None
         self._timer = QTimer(self)
         self._timer.timeout.connect(self.refresh_status)
         self._timer.start(3000)
         self._build()
+        self._build_tray()
 
     def _build(self) -> None:
         self.cfg = load_config()
@@ -267,6 +282,63 @@ class MainWindow(QMainWindow):
         row.addWidget(save_btn)
         return row
 
+    # ------------------------------------------------------------ tray
+    def _build_tray(self) -> None:
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            return
+        self.tray = QSystemTrayIcon(app_icon(), self)
+        self.tray.setToolTip("gsr-clip")
+        menu = QMenu()
+        menu.addAction("Show / Hide window").triggered.connect(self._toggle_window)
+        menu.addSeparator()
+        menu.addAction("Open Trimmer").triggered.connect(self.open_trimmer)
+        menu.addSeparator()
+        self.tray_start = menu.addAction("Start daemon")
+        self.tray_start.triggered.connect(lambda: self._service("start"))
+        self.tray_stop = menu.addAction("Stop daemon")
+        self.tray_stop.triggered.connect(lambda: self._service("stop"))
+        menu.addAction("Restart daemon").triggered.connect(lambda: self._service("restart"))
+        menu.addSeparator()
+        menu.addAction("Quit").triggered.connect(self._quit)
+        self.tray.setContextMenu(menu)
+        self.tray.activated.connect(self._tray_activated)
+        self.tray.show()
+
+    def _tray_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
+        if reason == QSystemTrayIcon.Trigger:  # left click
+            self._toggle_window()
+
+    def _toggle_window(self) -> None:
+        if self.isVisible() and not self.isMinimized():
+            self.hide()
+        else:
+            self.showNormal()
+            self.raise_()
+            self.activateWindow()
+
+    def closeEvent(self, event) -> None:  # noqa: ANN001
+        if self.tray is not None and not self._force_quit:
+            event.ignore()
+            self.hide()
+            self.tray.showMessage(
+                "gsr-clip",
+                "Still running in the tray — right-click the icon to quit.",
+                app_icon(),
+                3000,
+            )
+        else:
+            self._cleanup()
+            event.accept()
+
+    def _quit(self) -> None:
+        self._force_quit = True
+        self._cleanup()
+        QApplication.quit()
+
+    def _cleanup(self) -> None:
+        if self._viewer is not None and self._viewer.poll() is None:
+            self._viewer.terminate()
+
     # --------------------------------------------------------- actions
     def _apply_fields(self) -> None:
         for key, widget in self._fields.items():
@@ -365,12 +437,20 @@ class MainWindow(QMainWindow):
         self.status_label.setText(" &nbsp;·&nbsp; ".join(parts))
         self.btn_start.setEnabled(not active)
         self.btn_stop.setEnabled(active)
+        if self.tray is not None:
+            self.tray.setToolTip("gsr-clip — " + ("running" if active else "stopped"))
+            self.tray_start.setEnabled(not active)
+            self.tray_stop.setEnabled(active)
 
 
 def main() -> None:
     app = QApplication(sys.argv)
     app.setApplicationName("gsr-clip")
+    app.setApplicationDisplayName("gsr-clip")
+    app.setWindowIcon(app_icon())
     win = MainWindow()
+    # With a tray present, hiding the window should not quit the app.
+    app.setQuitOnLastWindowClosed(win.tray is None)
     win.show()
     sys.exit(app.exec())
 

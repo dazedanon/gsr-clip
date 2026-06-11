@@ -61,10 +61,14 @@ else
     info "Config already exists; leaving it untouched"
 fi
 
-# --- desktop entry (launchable app) ---
+# --- desktop entry + icon (launchable app) ---
 if [ "$WITH_GUI" = "1" ]; then
     APP_DIR="$HOME/.local/share/applications"
-    mkdir -p "$APP_DIR"
+    ICON_DIR="$HOME/.local/share/icons/hicolor/scalable/apps"
+    mkdir -p "$APP_DIR" "$ICON_DIR"
+    info "Installing app icon"
+    cp "$PROJECT_DIR/gsr_clip/assets/icon.svg" "$ICON_DIR/gsr-clip.svg"
+    gtk-update-icon-cache -t "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
     info "Installing desktop launcher"
     sed "s#^Exec=gsr-clip-gui#Exec=$VENV/bin/gsr-clip-gui#" \
         "$PROJECT_DIR/packaging/gsr-clip.desktop" > "$APP_DIR/gsr-clip.desktop"

@@ -68,6 +68,9 @@ gsr-clip prune                        # delete oldest recordings to fit the cap
   Input / Notifications); **Save** writes `~/.config/gsr-clip/config.toml` and
   offers to restart the daemon to apply changes
 - **Prune now** button on the Storage tab
+- **System tray** icon — left-click toggles the window; right-click for Open
+  Trimmer / Start / Stop / Restart / Quit. Closing the window keeps it running
+  in the tray.
 
 Install the GUI deps with `pip install 'gsr-clip[gui]'` (the installer does this
 by default; set `GSR_CLIP_GUI=0` to skip).
