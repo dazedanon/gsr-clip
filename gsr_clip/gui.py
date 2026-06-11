@@ -80,7 +80,6 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(app_icon())
         self.setMinimumWidth(520)
         self._viewer: subprocess.Popen | None = None
-        self._force_quit = False
         self.tray: QSystemTrayIcon | None = None
         self._timer = QTimer(self)
         self._timer.timeout.connect(self.refresh_status)
@@ -317,21 +316,13 @@ class MainWindow(QMainWindow):
             self.activateWindow()
 
     def closeEvent(self, event) -> None:  # noqa: ANN001
-        if self.tray is not None and not self._force_quit:
-            event.ignore()
-            self.hide()
-            self.tray.showMessage(
-                "gsr-clip",
-                "Still running in the tray — right-click the icon to quit.",
-                app_icon(),
-                3000,
-            )
-        else:
-            self._cleanup()
-            event.accept()
+        # Closing the window quits the app (the tray only offers quick actions
+        # while it's open; it does not keep the app alive in the background).
+        self._cleanup()
+        event.accept()
+        QApplication.quit()
 
     def _quit(self) -> None:
-        self._force_quit = True
         self._cleanup()
         QApplication.quit()
 
@@ -449,8 +440,7 @@ def main() -> None:
     app.setApplicationDisplayName("gsr-clip")
     app.setWindowIcon(app_icon())
     win = MainWindow()
-    # With a tray present, hiding the window should not quit the app.
-    app.setQuitOnLastWindowClosed(win.tray is None)
+    app.setQuitOnLastWindowClosed(True)
     win.show()
     sys.exit(app.exec())
 
