@@ -36,8 +36,8 @@ etc. are tracked as proper dependencies (no more "orphan" surprises):
 ```bash
 cd ~/Projects/gsr-clip
 makepkg -si            # builds from committed HEAD, installs with pacman
-# GUI is optional; pull it in with:
-sudo pacman -S --asdeps pyside6 libnotify
+# GUI is optional; install it explicitly (NOT --asdeps, or it becomes an orphan):
+sudo pacman -S pyside6 libnotify
 systemctl --user daemon-reload
 systemctl --user enable --now gsr-clip.service
 gsr-clip status
