@@ -83,6 +83,10 @@ systemctl --user enable --now gsr-clip.service
 | Drop a highlight (in session) | tap **F9** / guide+LT |
 | Manual session start/stop | **double-tap F9** |
 
+The keyboard key is configurable, and you can require a held modifier via
+`hotkeys.modifier` (`alt`, `ctrl`, `shift`, `meta`) — e.g. set it to `alt` for
+**Alt+F9** so a stray F9 in a game doesn't fire it.
+
 ```bash
 gsr-clip status                       # daemon + session state
 gsr-clip clip                         # save replay buffer now (always-on mode)
@@ -145,15 +149,15 @@ binding through the RemoteDesktop portal — so the synthetic key never reaches
 action (KDE sees compositor-level keys, including Steam's injected ones):
 
 ```bash
-gsr-clip install-shortcut            # binds F10 -> `gsr-clip highlight`
+gsr-clip install-shortcut --key "Alt+F10"   # binds Alt+F10 -> `gsr-clip highlight`
 ```
 
 Then in Steam → the game's **Controller Layout**, bind the button (e.g. **Guide**,
-or a **Guide + LT** chord) to keyboard **F10**. Pressing it now drops a highlight
+or a **Guide + LT** chord) to keyboard **Alt+F10**. Pressing it now drops a highlight
 (or saves a clip outside a session), with the usual sound cue.
 
-Use a key *other* than the keyboard hotkey (F9) to avoid a double-trigger; pass
-`--key`/`--action` to change them (e.g. `gsr-clip install-shortcut --key F10 --action clip`).
+Use a key *distinct* from the keyboard hotkey to avoid a double-trigger; pass
+`--key`/`--action` to change them (e.g. `gsr-clip install-shortcut --key "Alt+F10" --action clip`).
 Prefer the raw pad instead? Disable Steam Input for the controller and the
 daemon reads **Guide + LT** directly via evdev.
 

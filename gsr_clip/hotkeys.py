@@ -48,11 +48,15 @@ class KeyboardHotkeys:
         on_single: AsyncCb,
         on_double: AsyncCb,
         double_tap_ms: int = 350,
+        modifiers: set[int] | None = None,
     ):
         self.keycode = keycode
         self.on_single = on_single
         self.on_double = on_double
         self.double_tap_s = double_tap_ms / 1000.0
+        # Any one of these codes held counts as "modifier down". Empty = none.
+        self.modifiers = modifiers or set()
+        self._held: set[int] = set()
         self._pending_single: asyncio.TimerHandle | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._devices: list[InputDevice] = []
@@ -79,10 +83,21 @@ class KeyboardHotkeys:
             log.exception("hotkey %s handler failed", kind)
 
     async def _read_device(self, dev: InputDevice) -> None:
-        log.info("listening for key %s on %s (%s)", self.keycode, dev.path, dev.name)
+        log.info("listening for key %s (mods=%s) on %s (%s)",
+                 self.keycode, sorted(self.modifiers), dev.path, dev.name)
         try:
             async for ev in dev.async_read_loop():
-                if ev.type == ecodes.EV_KEY and ev.code == self.keycode and ev.value == 1:
+                if ev.type != ecodes.EV_KEY:
+                    continue
+                if ev.code in self.modifiers:
+                    if ev.value:  # 1=down, 2=autorepeat
+                        self._held.add(ev.code)
+                    else:
+                        self._held.discard(ev.code)
+                    continue
+                if ev.code == self.keycode and ev.value == 1:
+                    if self.modifiers and not (self._held & self.modifiers):
+                        continue
                     self._handle_press()
         except (OSError, asyncio.CancelledError) as exc:
             log.info("stopped reading %s: %s", dev.path, exc)
