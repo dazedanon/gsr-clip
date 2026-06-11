@@ -402,11 +402,11 @@ resolution = "1920x1080"
 audio_codec = "aac"         # aac for mp4 sharing (Discord/browsers); opus is GSR default but less compatible
 capture_audio = true
 capture_microphone = true
-portal_token = "/home/dazed/.local/state/gsr-clip/portal.token"
+portal_token = "~/.local/state/gsr-clip/portal.token"
 
 [paths]
-replays = "/home/dazed/Videos/GSRClip/replays"
-sessions = "/home/dazed/Videos/GSRClip/sessions"
+replays = "~/Videos/GSRClip/replays"
+sessions = "~/Videos/GSRClip/sessions"
 
 [session]
 auto_start = true               # auto-start a session when a Steam game gains focus

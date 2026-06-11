@@ -4,7 +4,7 @@ pkgver=0.1.0
 pkgrel=1
 pkgdesc="Clip + session recorder on gpu-screen-recorder: replay buffer, Steam-gated auto sessions, highlight viewer + GUI"
 arch=('any')
-url="https://github.com/dazed/gsr-clip"
+url="https://github.com/dazedanon/gsr-clip"
 license=('GPL-3.0-only')
 depends=(
   'python'
