@@ -203,6 +203,33 @@ def load_config(path: Path | None = None) -> Config:
     return cfg
 
 
+def _toml_value(v: Any) -> str:
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, (int, float)):
+        return repr(v)
+    s = str(v).replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{s}"'
+
+
+def dump_config(cfg: Config) -> str:
+    """Serialize a Config back to TOML text (our schema is flat scalars)."""
+    out = ["# gsr-clip configuration (managed by the GUI; safe to hand-edit).\n"]
+    for section, vals in config_to_dict(cfg).items():
+        out.append(f"[{section}]")
+        for key, value in vals.items():
+            out.append(f"{key} = {_toml_value(value)}")
+        out.append("")
+    return "\n".join(out)
+
+
+def save_config(cfg: Config, path: Path | None = None) -> Path:
+    path = path or CONFIG_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(dump_config(cfg))
+    return path
+
+
 def config_to_dict(cfg: Config) -> dict[str, Any]:
     return {
         "recording": asdict(cfg.recording),

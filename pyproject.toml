@@ -12,13 +12,17 @@ license = { text = "GPL-3.0-only" }
 authors = [{ name = "dazed" }]
 dependencies = [
     "evdev>=1.6",
-    # tomllib is stdlib on 3.11+; tomli-w only needed if we ever write TOML.
-    "tomli-w>=1.0",
 ]
+
+[project.optional-dependencies]
+gui = ["PySide6>=6.6"]
 
 [project.scripts]
 gsr-clip = "gsr_clip.cli:main"
 gsr-clipd = "gsr_clip.daemon:main"
+
+[project.gui-scripts]
+gsr-clip-gui = "gsr_clip.gui:main"
 
 [tool.setuptools]
 packages = ["gsr_clip"]

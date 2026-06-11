@@ -1,0 +1,379 @@
+"""Small desktop GUI for gsr-clip.
+
+Gives a one-window control panel: daemon status, start/stop/restart of the
+systemd --user service, a button to open the highlight trimmer, and a tabbed
+editor for the config options that writes ``~/.config/gsr-clip/config.toml``.
+
+Requires PySide6 (install the ``gui`` extra: ``pip install gsr-clip[gui]``).
+"""
+
+from __future__ import annotations
+
+import subprocess
+import sys
+import webbrowser
+from pathlib import Path
+
+try:
+    from PySide6.QtCore import Qt, QTimer
+    from PySide6.QtWidgets import (
+        QApplication,
+        QCheckBox,
+        QComboBox,
+        QDoubleSpinBox,
+        QFormLayout,
+        QFrame,
+        QHBoxLayout,
+        QLabel,
+        QLineEdit,
+        QMainWindow,
+        QMessageBox,
+        QPushButton,
+        QSpinBox,
+        QTabWidget,
+        QVBoxLayout,
+        QWidget,
+    )
+except ModuleNotFoundError:  # pragma: no cover
+    sys.stderr.write(
+        "gsr-clip GUI needs PySide6.\n"
+        "Install it with:  pip install 'gsr-clip[gui]'   (or: pip install PySide6)\n"
+    )
+    raise SystemExit(1)
+
+from . import storage
+from .cli import _send
+from .config import CONFIG_PATH, Config, load_config, save_config
+
+SERVICE = "gsr-clip.service"
+VIEWER_PORT = 8723
+
+
+def _systemctl(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["systemctl", "--user", *args, SERVICE],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _service_active() -> bool:
+    return _systemctl("is-active").stdout.strip() == "active"
+
+
+class MainWindow(QMainWindow):
+    def __init__(self) -> None:
+        super().__init__()
+        self.setWindowTitle("gsr-clip")
+        self.setMinimumWidth(520)
+        self._viewer: subprocess.Popen | None = None
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self.refresh_status)
+        self._timer.start(3000)
+        self._build()
+
+    def _build(self) -> None:
+        self.cfg = load_config()
+        self._fields: dict[str, object] = {}
+
+        root = QWidget()
+        self.setCentralWidget(root)  # replaces & deletes any previous central widget
+        layout = QVBoxLayout(root)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(12)
+
+        layout.addLayout(self._build_header())
+        layout.addWidget(self._divider())
+        layout.addWidget(self._build_tabs(), 1)
+        layout.addLayout(self._build_footer())
+        self.refresh_status()
+
+    # ----------------------------------------------------------- header
+    def _build_header(self) -> QVBoxLayout:
+        box = QVBoxLayout()
+        self.status_label = QLabel("…")
+        self.status_label.setTextFormat(Qt.RichText)
+        box.addWidget(self.status_label)
+
+        row = QHBoxLayout()
+        self.btn_trimmer = QPushButton("Open Trimmer")
+        self.btn_trimmer.clicked.connect(self.open_trimmer)
+        self.btn_start = QPushButton("Start")
+        self.btn_start.clicked.connect(lambda: self._service("start"))
+        self.btn_stop = QPushButton("Stop")
+        self.btn_stop.clicked.connect(lambda: self._service("stop"))
+        self.btn_restart = QPushButton("Restart")
+        self.btn_restart.clicked.connect(lambda: self._service("restart"))
+        for b in (self.btn_trimmer, self.btn_start, self.btn_stop, self.btn_restart):
+            row.addWidget(b)
+        row.addStretch(1)
+        box.addLayout(row)
+        return box
+
+    def _divider(self) -> QFrame:
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        return line
+
+    # ------------------------------------------------------------ tabs
+    def _build_tabs(self) -> QTabWidget:
+        tabs = QTabWidget()
+        tabs.addTab(self._tab_recording(), "Recording")
+        tabs.addTab(self._tab_sessions(), "Sessions")
+        tabs.addTab(self._tab_storage(), "Storage")
+        tabs.addTab(self._tab_trim(), "Trim")
+        tabs.addTab(self._tab_hotkeys(), "Input")
+        tabs.addTab(self._tab_notifications(), "Notifications")
+        return tabs
+
+    def _form(self) -> tuple[QWidget, QFormLayout]:
+        w = QWidget()
+        f = QFormLayout(w)
+        f.setLabelAlignment(Qt.AlignRight)
+        return w, f
+
+    def _combo(self, key: str, options: list[tuple[str, object]], value: object) -> QComboBox:
+        c = QComboBox()
+        for label, val in options:
+            c.addItem(label, val)
+        idx = next((i for i, (_, v) in enumerate(options) if v == value), 0)
+        c.setCurrentIndex(idx)
+        self._fields[key] = c
+        return c
+
+    def _check(self, key: str, value: bool) -> QCheckBox:
+        c = QCheckBox()
+        c.setChecked(bool(value))
+        self._fields[key] = c
+        return c
+
+    def _int(self, key: str, value: int, lo: int, hi: int) -> QSpinBox:
+        s = QSpinBox()
+        s.setRange(lo, hi)
+        s.setValue(int(value))
+        self._fields[key] = s
+        return s
+
+    def _float(self, key: str, value: float, lo: float, hi: float, step: float = 0.5) -> QDoubleSpinBox:
+        s = QDoubleSpinBox()
+        s.setRange(lo, hi)
+        s.setSingleStep(step)
+        s.setDecimals(1)
+        s.setValue(float(value))
+        self._fields[key] = s
+        return s
+
+    def _text(self, key: str, value: str) -> QLineEdit:
+        e = QLineEdit(str(value))
+        self._fields[key] = e
+        return e
+
+    def _tab_recording(self) -> QWidget:
+        w, f = self._form()
+        r = self.cfg.recording
+        f.addRow("Mode", self._combo(
+            "recording.always_on",
+            [("Sessions-only (record only in-game)", False), ("Always-on (rolling buffer)", True)],
+            r.always_on,
+        ))
+        f.addRow("FPS", self._int("recording.fps", r.fps, 10, 480))
+        f.addRow("Resolution", self._text("recording.resolution", r.resolution))
+        f.addRow("Frame rate mode", self._combo(
+            "recording.frame_rate_mode",
+            [("Variable (vfr)", "vfr"), ("Constant 60fps (cfr)", "cfr"), ("Content", "content")],
+            r.frame_rate_mode,
+        ))
+        f.addRow("Replay buffer (s)", self._int("recording.buffer_seconds", r.buffer_seconds, 5, 3600))
+        f.addRow("Audio codec", self._combo(
+            "recording.audio_codec", [("aac", "aac"), ("opus", "opus")], r.audio_codec,
+        ))
+        f.addRow("Capture system audio", self._check("recording.capture_audio", r.capture_audio))
+        f.addRow("Capture microphone", self._check("recording.capture_microphone", r.capture_microphone))
+        return w
+
+    def _tab_sessions(self) -> QWidget:
+        w, f = self._form()
+        s = self.cfg.session
+        f.addRow("Auto-start on game focus", self._check("session.auto_start", s.auto_start))
+        f.addRow("Require Steam game", self._check("session.require_steam_game", s.require_steam_game))
+        f.addRow("Auto-stop when game exits", self._check("session.auto_stop_on_exit", s.auto_stop_on_exit))
+        f.addRow("Stop on focus loss (alt-tab)", self._check("session.stop_on_focus_loss", s.stop_on_focus_loss))
+        f.addRow("Focus poll (s)", self._float("session.focus_poll_seconds", s.focus_poll_seconds, 0.2, 10))
+        f.addRow("PID poll (s)", self._float("session.pid_poll_seconds", s.pid_poll_seconds, 0.2, 10))
+        f.addRow("Debounce (s)", self._float("session.debounce_seconds", s.debounce_seconds, 0, 30))
+        return w
+
+    def _tab_storage(self) -> QWidget:
+        w, f = self._form()
+        st = self.cfg.storage
+        f.addRow("Max total size (GB, 0=∞)", self._float("storage.max_size_gb", st.max_size_gb, 0, 100000, step=5))
+        f.addRow("Keep files newer than (s)", self._float("storage.keep_recent_seconds", st.keep_recent_seconds, 0, 600))
+        self.usage_label = QLabel("…")
+        f.addRow("Current usage", self.usage_label)
+        prune = QPushButton("Prune now")
+        prune.clicked.connect(self.prune_now)
+        f.addRow("", prune)
+        self._refresh_usage()
+        return w
+
+    def _tab_trim(self) -> QWidget:
+        w, f = self._form()
+        t = self.cfg.trim
+        f.addRow("Highlight: seconds before press", self._float("trim.highlight_pre", t.highlight_pre, 0, 120))
+        f.addRow("Highlight: seconds after press", self._float("trim.highlight_post", t.highlight_post, 0, 120))
+        f.addRow("CLI padding (s)", self._float("trim.padding_seconds", t.padding_seconds, 0, 120))
+        return w
+
+    def _tab_hotkeys(self) -> QWidget:
+        w, f = self._form()
+        h, g = self.cfg.hotkeys, self.cfg.gamepad
+        f.addRow("Keyboard hotkeys enabled", self._check("hotkeys.enabled", h.enabled))
+        f.addRow("Clip/highlight key", self._text("hotkeys.clip", h.clip))
+        f.addRow("Double-tap window (ms)", self._int("hotkeys.double_tap_ms", h.double_tap_ms, 100, 1000))
+        f.addRow("Gamepad enabled", self._check("gamepad.enabled", g.enabled))
+        f.addRow("Gamepad button", self._text("gamepad.button", g.button))
+        f.addRow("Gamepad axis", self._text("gamepad.axis", g.axis))
+        f.addRow("Gamepad threshold", self._int("gamepad.threshold", g.threshold, 1, 255))
+        return w
+
+    def _tab_notifications(self) -> QWidget:
+        w, f = self._form()
+        n = self.cfg.notifications
+        f.addRow("Notify: session start", self._check("notifications.session_start", n.session_start))
+        f.addRow("Notify: session stop", self._check("notifications.session_stop", n.session_stop))
+        f.addRow("Notify: clips", self._check("notifications.clips", n.clips))
+        f.addRow("Notify: highlights", self._check("notifications.highlights", n.highlights))
+        f.addRow("Play sounds (audible in-game)", self._check("notifications.sound", n.sound))
+        f.addRow("Sound: session start", self._text("notifications.sound_session_start", n.sound_session_start))
+        f.addRow("Sound: session stop", self._text("notifications.sound_session_stop", n.sound_session_stop))
+        f.addRow("Sound: highlight", self._text("notifications.sound_highlight", n.sound_highlight))
+        return w
+
+    # ---------------------------------------------------------- footer
+    def _build_footer(self) -> QHBoxLayout:
+        row = QHBoxLayout()
+        path_lbl = QLabel(f"<span style='color:#888'>{CONFIG_PATH}</span>")
+        path_lbl.setTextFormat(Qt.RichText)
+        row.addWidget(path_lbl)
+        row.addStretch(1)
+        reload_btn = QPushButton("Reload")
+        reload_btn.clicked.connect(self.reload_config)
+        save_btn = QPushButton("Save")
+        save_btn.setDefault(True)
+        save_btn.clicked.connect(self.save)
+        row.addWidget(reload_btn)
+        row.addWidget(save_btn)
+        return row
+
+    # --------------------------------------------------------- actions
+    def _apply_fields(self) -> None:
+        for key, widget in self._fields.items():
+            section, attr = key.split(".", 1)
+            obj = getattr(self.cfg, section)
+            if isinstance(widget, QComboBox):
+                value = widget.currentData()
+            elif isinstance(widget, QCheckBox):
+                value = widget.isChecked()
+            elif isinstance(widget, (QSpinBox, QDoubleSpinBox)):
+                value = widget.value()
+            else:  # QLineEdit
+                value = widget.text()
+            setattr(obj, attr, value)
+
+    def save(self) -> None:
+        self._apply_fields()
+        try:
+            save_config(self.cfg)
+        except OSError as exc:
+            QMessageBox.critical(self, "gsr-clip", f"Could not write config:\n{exc}")
+            return
+        self._refresh_usage()
+        if _service_active():
+            ans = QMessageBox.question(
+                self,
+                "gsr-clip",
+                "Settings saved.\n\nRestart the daemon now to apply them?",
+                QMessageBox.Yes | QMessageBox.No,
+            )
+            if ans == QMessageBox.Yes:
+                self._service("restart")
+        else:
+            QMessageBox.information(self, "gsr-clip", "Settings saved.")
+
+    def reload_config(self) -> None:
+        self._build()
+
+    def _service(self, action: str) -> None:
+        proc = _systemctl(action)
+        if proc.returncode != 0:
+            QMessageBox.warning(self, "gsr-clip", proc.stderr.strip() or f"{action} failed")
+        QTimer.singleShot(600, self.refresh_status)
+
+    def open_trimmer(self) -> None:
+        url = f"http://127.0.0.1:{VIEWER_PORT}/"
+        if self._viewer is None or self._viewer.poll() is not None:
+            self._viewer = subprocess.Popen(
+                [sys.executable, "-m", "gsr_clip.cli", "viewer", "--no-open", "--port", str(VIEWER_PORT)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            QTimer.singleShot(800, lambda: webbrowser.open(url))
+        else:
+            webbrowser.open(url)
+
+    def prune_now(self) -> None:
+        self._apply_fields()
+        try:
+            save_config(self.cfg)
+        except OSError:
+            pass
+        freed, deleted = storage.enforce_limit(self.cfg)
+        self._refresh_usage()
+        QMessageBox.information(
+            self,
+            "gsr-clip",
+            f"Freed {freed / (1024 ** 3):.2f} GB by removing {len(deleted)} file(s)."
+            if deleted else "Nothing to prune — under the cap.",
+        )
+
+    def _refresh_usage(self) -> None:
+        if not hasattr(self, "usage_label"):
+            return
+        used = storage.total_bytes(self.cfg)
+        n = len(storage.list_recordings(self.cfg))
+        self.usage_label.setText(f"{used / (1024 ** 3):.2f} GB across {n} file(s)")
+
+    def refresh_status(self) -> None:
+        active = _service_active()
+        parts = []
+        if active:
+            parts.append("<b style='color:#3ecf8e'>daemon running</b>")
+            resp = _send({"cmd": "status"})
+            st = resp.get("status") if isinstance(resp, dict) else None
+            if st:
+                parts.append(f"mode: {st.get('mode', '?')}")
+                if st.get("session_active"):
+                    parts.append(f"recording <b>{st.get('game')}</b> ({st.get('highlights', 0)} ★)")
+                else:
+                    parts.append("idle")
+                if not st.get("kdotool"):
+                    parts.append("<span style='color:#ff6b6b'>kdotool missing</span>")
+        else:
+            parts.append("<b style='color:#ff6b6b'>daemon stopped</b>")
+        self.status_label.setText(" &nbsp;·&nbsp; ".join(parts))
+        self.btn_start.setEnabled(not active)
+        self.btn_stop.setEnabled(active)
+
+
+def main() -> None:
+    app = QApplication(sys.argv)
+    app.setApplicationName("gsr-clip")
+    win = MainWindow()
+    win.show()
+    sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()

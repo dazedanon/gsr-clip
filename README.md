@@ -16,6 +16,8 @@ See [`PLAN.md`](PLAN.md) for the full design.
   sidecar next to the video.
 - **Single encoder** — refuses to start if another GSR (e.g. Vice) is running.
 - **Trim** — `gsr-clip trim` cuts highlights out with ffmpeg (`-c copy`).
+- **Desktop GUI** — `gsr-clip-gui` (PySide6): status, service controls, one-click
+  trimmer, and a settings editor for `config.toml`.
 
 ## Requirements
 
@@ -54,6 +56,21 @@ gsr-clip trim Game_2026-..._.mp4 --from 140 --to 160
 gsr-clip prune --dry-run              # show disk usage vs the size cap
 gsr-clip prune                        # delete oldest recordings to fit the cap
 ```
+
+### Desktop app
+
+`gsr-clip-gui` opens a small control window (installed when you build with the
+`gui` extra, and added to your app launcher as **gsr-clip**):
+
+- live daemon status + **Start / Stop / Restart** the service
+- **Open Trimmer** — launches the highlight viewer and opens it in your browser
+- tabbed editor for every config option (Recording / Sessions / Storage / Trim /
+  Input / Notifications); **Save** writes `~/.config/gsr-clip/config.toml` and
+  offers to restart the daemon to apply changes
+- **Prune now** button on the Storage tab
+
+Install the GUI deps with `pip install 'gsr-clip[gui]'` (the installer does this
+by default; set `GSR_CLIP_GUI=0` to skip).
 
 ### Highlight viewer
 
@@ -97,9 +114,11 @@ gsr_clip/
   hotkeys.py      evdev keyboard single/double tap
   gamepad.py      guide+LT combo
   highlights.py   sidecar JSON
-  trim.py         lossless ffmpeg stream-copy trims
+  trim.py         lossless stream-copy + target-size re-encode (share presets)
+  storage.py      size-cap enforcement (oldest-first auto-delete)
   viewer.py       localhost web viewer/trimmer (range-capable video server)
   web/            viewer UI (index.html, app.js, style.css)
+  gui.py          PySide6 desktop app (status, controls, settings editor)
   daemon.py       asyncio loop, state machine, IPC socket
-  cli.py          gsr-clip start|stop|status|clip|highlight|session|trim|viewer
+  cli.py          gsr-clip start|stop|status|clip|highlight|session|trim|viewer|prune
 ```

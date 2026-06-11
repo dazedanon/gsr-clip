@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=gsr-clip
+GenericName=Clip & Highlight Recorder
+Comment=Control the gsr-clip recorder, open the trimmer, and edit settings
+Exec=gsr-clip-gui
+Icon=media-record
+Terminal=false
+Categories=AudioVideo;Recorder;Utility;
+Keywords=clip;record;replay;highlight;steam;gpu-screen-recorder;
+StartupNotify=true

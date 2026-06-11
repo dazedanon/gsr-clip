@@ -23,7 +23,13 @@ if [ ! -d "$VENV" ]; then
 fi
 info "Installing gsr-clip into venv"
 "$VENV/bin/pip" install --quiet --upgrade pip
-"$VENV/bin/pip" install --quiet -e "$PROJECT_DIR"
+WITH_GUI="${GSR_CLIP_GUI:-1}"
+if [ "$WITH_GUI" = "1" ]; then
+    info "Installing with GUI (PySide6). Set GSR_CLIP_GUI=0 to skip."
+    "$VENV/bin/pip" install --quiet -e "$PROJECT_DIR[gui]"
+else
+    "$VENV/bin/pip" install --quiet -e "$PROJECT_DIR"
+fi
 
 # --- dependency checks ---
 check_bin() {
@@ -53,6 +59,16 @@ if [ ! -f "$CONFIG_DIR/config.toml" ]; then
     cp "$PROJECT_DIR/packaging/config.example.toml" "$CONFIG_DIR/config.toml"
 else
     info "Config already exists; leaving it untouched"
+fi
+
+# --- desktop entry (launchable app) ---
+if [ "$WITH_GUI" = "1" ]; then
+    APP_DIR="$HOME/.local/share/applications"
+    mkdir -p "$APP_DIR"
+    info "Installing desktop launcher"
+    sed "s#^Exec=gsr-clip-gui#Exec=$VENV/bin/gsr-clip-gui#" \
+        "$PROJECT_DIR/packaging/gsr-clip.desktop" > "$APP_DIR/gsr-clip.desktop"
+    update-desktop-database "$APP_DIR" 2>/dev/null || true
 fi
 
 # --- systemd unit ---
