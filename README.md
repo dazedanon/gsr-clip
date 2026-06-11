@@ -28,14 +28,51 @@ See [`PLAN.md`](PLAN.md) for the full design.
 
 ## Install
 
+### Option A — Arch package (recommended)
+
+Builds a real pacman package, so `gpu-screen-recorder`, `ffmpeg`, `kdotool`,
+etc. are tracked as proper dependencies (no more "orphan" surprises):
+
 ```bash
-git clone <repo> ~/Projects/gsr-clip
 cd ~/Projects/gsr-clip
-./packaging/install.sh
-# switching from Vice? disable it first:
-systemctl --user disable --now vice.service
+makepkg -si            # builds from committed HEAD, installs with pacman
+# GUI is optional; pull it in with:
+sudo pacman -S --asdeps pyside6 libnotify
+systemctl --user daemon-reload
 systemctl --user enable --now gsr-clip.service
 gsr-clip status
+```
+
+Console scripts land at `/usr/bin/{gsr-clip,gsr-clipd,gsr-clip-gui}`, the
+service at `/usr/lib/systemd/user/gsr-clip.service`, and the launcher/icon
+system-wide. Copy the example config once:
+`mkdir -p ~/.config/gsr-clip && cp /usr/share/doc/gsr-clip/config.example.toml ~/.config/gsr-clip/config.toml`.
+
+> Builds use the committed git state, so `git commit` your changes before
+> rebuilding.
+
+### Option B — venv (development)
+
+```bash
+cd ~/Projects/gsr-clip
+./packaging/install.sh        # GSR_CLIP_GUI=0 to skip the GUI deps
+systemctl --user enable --now gsr-clip.service
+gsr-clip status
+```
+
+### Migrating from the venv install to the package
+
+The venv install drops user-level overrides that shadow the packaged files.
+Remove them so the package's copies take effect:
+
+```bash
+systemctl --user disable --now gsr-clip.service
+rm -f ~/.config/systemd/user/gsr-clip.service        # use the packaged unit
+rm -f ~/.local/share/applications/gsr-clip.desktop   # use the packaged launcher
+rm -f ~/.local/share/icons/hicolor/scalable/apps/gsr-clip.svg
+rm -rf ~/Projects/gsr-clip/.venv                     # optional
+systemctl --user daemon-reload
+systemctl --user enable --now gsr-clip.service
 ```
 
 ## Usage

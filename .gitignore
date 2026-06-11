@@ -1,4 +1,8 @@
 .venv/
+# makepkg build artifacts
+/pkg/
+/src/
+*.pkg.tar.*
 __pycache__/
 *.pyc
 *.egg-info/
