@@ -1,11 +1,12 @@
 """Gamepad combo listener (guide + left trigger) via evdev.
 
 Fires once on the rising edge of ``BTN_MODE`` held while ``ABS_Z`` (LT) crosses a
-threshold. Listens on the physical gamepad device.
+threshold. Polls for matching devices so a controller connected *after* the
+daemon starts (e.g. a wireless pad powered on later) is picked up on hotplug.
 
-NOTE: when Steam Input is enabled it often grabs the controller and/or consumes
-BTN_MODE, so this combo may never reach us while in-game. The keyboard hotkey is
-the reliable fallback.
+NOTE: when Steam Input is enabled it grabs the controller and/or consumes
+BTN_MODE, so this combo never reaches us. Disable Steam Input for the pad
+(use it as a generic controller) for the guide+LT combo to work.
 """
 
 from __future__ import annotations
@@ -46,11 +47,15 @@ class GamepadCombo:
         axis: int,
         threshold: int,
         on_combo: AsyncCb,
+        poll_seconds: float = 3.0,
     ):
         self.button = button
         self.axis = axis
         self.threshold = threshold
         self.on_combo = on_combo
+        self.poll_seconds = poll_seconds
+        self._tasks: dict[str, asyncio.Task] = {}
+        self._announced_empty = False
 
     async def _read_device(self, dev: InputDevice) -> None:
         log.info("listening for gamepad combo on %s (%s)", dev.path, dev.name)
@@ -73,7 +78,12 @@ class GamepadCombo:
                 else:
                     fired = False
         except (OSError, asyncio.CancelledError) as exc:
-            log.info("stopped reading gamepad %s: %s", dev.path, exc)
+            log.info("gamepad disconnected %s: %s", dev.path, exc)
+        finally:
+            try:
+                dev.close()
+            except OSError:
+                pass
 
     async def _fire(self) -> None:
         try:
@@ -81,9 +91,28 @@ class GamepadCombo:
         except Exception:  # noqa: BLE001
             log.exception("gamepad combo handler failed")
 
+    def _scan(self) -> None:
+        for dev in find_gamepads(self.button, self.axis):
+            if dev.path in self._tasks:
+                dev.close()  # already reading this node
+                continue
+            log.info("gamepad attached: %s (%s)", dev.path, dev.name)
+            task = asyncio.ensure_future(self._read_device(dev))
+            self._tasks[dev.path] = task
+            task.add_done_callback(lambda t, p=dev.path: self._tasks.pop(p, None))
+        if self._tasks:
+            self._announced_empty = False
+        elif not self._announced_empty:
+            log.info("no gamepad with button=%s axis=%s yet — waiting for hotplug",
+                     self.button, self.axis)
+            self._announced_empty = True
+
     async def run(self) -> None:
-        devices = find_gamepads(self.button, self.axis)
-        if not devices:
-            log.info("no gamepad with button=%s axis=%s found", self.button, self.axis)
-            return
-        await asyncio.gather(*(self._read_device(d) for d in devices))
+        try:
+            while True:
+                self._scan()
+                await asyncio.sleep(self.poll_seconds)
+        except asyncio.CancelledError:
+            for task in list(self._tasks.values()):
+                task.cancel()
+            raise

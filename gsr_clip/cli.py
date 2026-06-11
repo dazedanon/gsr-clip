@@ -118,68 +118,6 @@ def cmd_viewer(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_install_shortcut(args: argparse.Namespace) -> int:
-    """Register a KDE (Plasma 6) global shortcut that runs a gsr-clip action.
-
-    This is the reliable way to trigger gsr-clip from a controller on Wayland:
-    bind the gamepad button in Steam to the chosen keyboard key, and KDE fires
-    this shortcut (compositor-level, so it works even though Steam injects the
-    key via the RemoteDesktop portal where evdev can't see it).
-    """
-    import os
-    import shutil
-    import subprocess
-
-    key = args.key
-    action = args.action
-    name = f"gsr-clip: {action}"
-    desktop_id = f"gsr-clip-{action}"
-    exec_path = "/usr/bin/gsr-clip" if os.path.exists("/usr/bin/gsr-clip") else (
-        shutil.which("gsr-clip") or "/usr/bin/gsr-clip")
-
-    apps = Path.home() / ".local/share/applications"
-    apps.mkdir(parents=True, exist_ok=True)
-    desktop = apps / f"{desktop_id}.desktop"
-    desktop.write_text(
-        "[Desktop Entry]\n"
-        f"Exec={exec_path} {action}\n"
-        f"Name={name}\n"
-        "Icon=gsr-clip\n"
-        "NoDisplay=true\n"
-        "StartupNotify=false\n"
-        "Type=Application\n"
-        "X-KDE-GlobalAccel-CommandShortcut=true\n"
-    )
-
-    kw = shutil.which("kwriteconfig6") or shutil.which("kwriteconfig5")
-    if not kw:
-        print("kwriteconfig6 not found. Add it manually in System Settings:")
-        print(f"  Shortcuts -> Add Command -> '{exec_path} {action}' -> assign {key}")
-        return 1
-    grp = f"{desktop_id}.desktop"
-    subprocess.run([kw, "--file", "kglobalshortcutsrc", "--group", grp,
-                    "--key", "_k_friendly_name", name], check=False)
-    subprocess.run([kw, "--file", "kglobalshortcutsrc", "--group", grp,
-                    "--key", "_launch", f"{key},none,{name}"], check=False)
-
-    reloaded = False
-    if shutil.which("kquitapp6") and os.path.exists("/usr/lib/kglobalacceld"):
-        subprocess.run(["kquitapp6", "kglobalaccel"], check=False,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        subprocess.Popen(["/usr/lib/kglobalacceld"], stdout=subprocess.DEVNULL,
-                         stderr=subprocess.DEVNULL, start_new_session=True)
-        reloaded = True
-
-    print(f"Registered KDE global shortcut {key} -> {exec_path} {action}")
-    print(f"  launcher: {desktop}")
-    if not reloaded:
-        print("  Log out/in (or restart kglobalacceld) for it to take effect.")
-    print()
-    print("Steam: open the game's controller layout and bind the button")
-    print(f"  (e.g. Guide, or a Guide+LT chord) to the keyboard key '{key}'.")
-    return 0
-
-
 def cmd_prune(args: argparse.Namespace) -> int:
     from . import storage
 
@@ -228,13 +166,6 @@ def build_parser() -> argparse.ArgumentParser:
     v.add_argument("--port", type=int, default=8723)
     v.add_argument("--no-open", action="store_true", help="don't open a browser")
 
-    sc = sub.add_parser("install-shortcut",
-                        help="register a KDE global shortcut to fire gsr-clip (for binding a Steam controller button)")
-    sc.add_argument("--key", default="F10",
-                    help="key the shortcut listens for; bind your Steam button to this (default F10)")
-    sc.add_argument("--action", default="highlight", choices=["highlight", "clip", "session"],
-                    help="what the shortcut triggers (default highlight)")
-
     pr = sub.add_parser("prune", help="delete oldest recordings to stay under the size cap")
     pr.add_argument("--max-gb", type=float, help="override the configured cap (GiB)")
     pr.add_argument("--dry-run", action="store_true", help="show usage without deleting")
@@ -266,8 +197,6 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_trim(args)
     if args.command == "viewer":
         return cmd_viewer(args)
-    if args.command == "install-shortcut":
-        return cmd_install_shortcut(args)
     if args.command == "prune":
         return cmd_prune(args)
     if args.command == "on-save":

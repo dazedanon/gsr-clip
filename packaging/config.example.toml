@@ -33,7 +33,6 @@ debounce_seconds = 3.0
 [hotkeys]
 enabled = true
 clip = "KEY_F9"             # single tap = clip/highlight, double tap = session override
-# modifier = "alt"          # require a held modifier (alt/ctrl/shift/meta) -> e.g. Alt+F9
 double_tap_ms = 350
 
 [gamepad]

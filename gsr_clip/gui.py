@@ -246,7 +246,6 @@ class MainWindow(QMainWindow):
         h, g = self.cfg.hotkeys, self.cfg.gamepad
         f.addRow("Keyboard hotkeys enabled", self._check("hotkeys.enabled", h.enabled))
         f.addRow("Clip/highlight key", self._text("hotkeys.clip", h.clip))
-        f.addRow("Modifier (e.g. alt, ctrl)", self._text("hotkeys.modifier", h.modifier))
         f.addRow("Double-tap window (ms)", self._int("hotkeys.double_tap_ms", h.double_tap_ms, 100, 1000))
         f.addRow("Gamepad enabled", self._check("gamepad.enabled", g.enabled))
         f.addRow("Gamepad button", self._text("gamepad.button", g.button))

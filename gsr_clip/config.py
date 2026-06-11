@@ -82,10 +82,6 @@ class SessionConfig:
 class HotkeysConfig:
     clip: str = "KEY_F9"
     session_override: str = "KEY_F9"
-    # Optional modifier that must be held with the key (e.g. "alt", "ctrl",
-    # "shift", "meta", or an explicit evdev name like "KEY_LEFTALT"). Empty
-    # means the key fires on its own.
-    modifier: str = ""
     double_tap_ms: int = 350
     enabled: bool = True
 

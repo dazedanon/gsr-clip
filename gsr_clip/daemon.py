@@ -33,32 +33,6 @@ log = logging.getLogger("gsr-clip.daemon")
 SAVE_TYPES = {"regular", "replay", "screenshot"}
 FINALIZE_FALLBACK_S = 6.0
 
-# Friendly modifier names -> the evdev key names that satisfy them.
-_MODIFIER_ALIASES = {
-    "alt": ("KEY_LEFTALT", "KEY_RIGHTALT"),
-    "ctrl": ("KEY_LEFTCTRL", "KEY_RIGHTCTRL"),
-    "control": ("KEY_LEFTCTRL", "KEY_RIGHTCTRL"),
-    "shift": ("KEY_LEFTSHIFT", "KEY_RIGHTSHIFT"),
-    "meta": ("KEY_LEFTMETA", "KEY_RIGHTMETA"),
-    "super": ("KEY_LEFTMETA", "KEY_RIGHTMETA"),
-}
-
-
-def _resolve_modifiers(name: str, ecodes) -> set[int]:
-    """Turn a modifier config string into the set of evdev keycodes that satisfy it."""
-    name = (name or "").strip()
-    if not name:
-        return set()
-    key_names = _MODIFIER_ALIASES.get(name.lower(), (name,))
-    codes: set[int] = set()
-    for kn in key_names:
-        code = ecodes.ecodes.get(kn)
-        if code is not None:
-            codes.add(code)
-        else:
-            log.warning("unknown hotkey modifier %r — ignoring", kn)
-    return codes
-
 
 class Daemon:
     def __init__(self, cfg: Config):
@@ -122,13 +96,11 @@ class Daemon:
                 from .hotkeys import KeyboardHotkeys
 
                 keycode = ecodes.ecodes[self.cfg.hotkeys.clip]
-                modifiers = _resolve_modifiers(self.cfg.hotkeys.modifier, ecodes)
                 kb = KeyboardHotkeys(
                     keycode=keycode,
                     on_single=self.on_single_tap,
                     on_double=self.on_double_tap,
                     double_tap_ms=self.cfg.hotkeys.double_tap_ms,
-                    modifiers=modifiers,
                 )
                 self._tasks.append(asyncio.ensure_future(kb.run()))
             except Exception:  # noqa: BLE001

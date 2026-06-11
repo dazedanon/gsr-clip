@@ -83,9 +83,9 @@ systemctl --user enable --now gsr-clip.service
 | Drop a highlight (in session) | tap **F9** / guide+LT |
 | Manual session start/stop | **double-tap F9** |
 
-The keyboard key is configurable, and you can require a held modifier via
-`hotkeys.modifier` (`alt`, `ctrl`, `shift`, `meta`) — e.g. set it to `alt` for
-**Alt+F9** so a stray F9 in a game doesn't fire it.
+The guide+LT combo is read directly from the pad via evdev. On KDE **Wayland**
+this requires **Steam Input to be disabled** for the controller — otherwise
+Steam grabs the device and the daemon never sees the buttons.
 
 ```bash
 gsr-clip status                       # daemon + session state
@@ -141,26 +141,6 @@ Run `gsr-clip prune` to enforce it manually.
 - `recording.always_on = true` — rolling buffer always running (instant clips, persistent recording icon).
 - `recording.always_on = false` — **sessions-only**: GSR runs only during a Steam game, so the recording icon only appears in-game.
 
-### Controller button (Steam Input on KDE Wayland)
-
-Steam Input grabs the physical pad and, on Wayland, injects any button→key
-binding through the RemoteDesktop portal — so the synthetic key never reaches
-`evdev`. The reliable bridge is a KDE **global shortcut** that runs a gsr-clip
-action (KDE sees compositor-level keys, including Steam's injected ones):
-
-```bash
-gsr-clip install-shortcut --key "Alt+F10"   # binds Alt+F10 -> `gsr-clip highlight`
-```
-
-Then in Steam → the game's **Controller Layout**, bind the button (e.g. **Guide**,
-or a **Guide + LT** chord) to keyboard **Alt+F10**. Pressing it now drops a highlight
-(or saves a clip outside a session), with the usual sound cue.
-
-Use a key *distinct* from the keyboard hotkey to avoid a double-trigger; pass
-`--key`/`--action` to change them (e.g. `gsr-clip install-shortcut --key "Alt+F10" --action clip`).
-Prefer the raw pad instead? Disable Steam Input for the controller and the
-daemon reads **Guide + LT** directly via evdev.
-
 ### Notifications
 
 Session start/stop and highlights also play a short **sound** (configurable),
@@ -184,5 +164,5 @@ gsr_clip/
   web/            viewer UI (index.html, app.js, style.css)
   gui.py          PySide6 desktop app (status, controls, settings editor)
   daemon.py       asyncio loop, state machine, IPC socket
-  cli.py          gsr-clip start|stop|status|clip|highlight|session|trim|viewer|prune|install-shortcut
+  cli.py          gsr-clip start|stop|status|clip|highlight|session|trim|viewer|prune
 ```
