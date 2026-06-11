@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>gsr-clip viewer</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <aside id="sidebar">
+    <h1>gsr-clip</h1>
+    <div id="session-list" class="session-list"></div>
+  </aside>
+
+  <main id="main">
+    <div id="empty" class="empty">Select a session on the left.</div>
+
+    <section id="player-wrap" class="hidden">
+      <header class="player-head">
+        <h2 id="session-title"></h2>
+        <span id="session-meta" class="meta"></span>
+      </header>
+
+      <div class="video-box">
+        <video id="video" preload="metadata"></video>
+      </div>
+
+      <div class="timeline-wrap">
+        <div id="timeline" class="timeline">
+          <div id="selection" class="selection"></div>
+          <div id="playhead" class="playhead"></div>
+          <div id="markers"></div>
+          <div id="handle-in" class="handle handle-in" title="In point"></div>
+          <div id="handle-out" class="handle handle-out" title="Out point"></div>
+        </div>
+        <div class="time-labels">
+          <span>In <b id="in-val">0:00.0</b></span>
+          <span id="sel-dur" class="sel-dur"></span>
+          <span>Out <b id="out-val">0:00.0</b></span>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <button id="play" title="Play/Pause (space)">▶</button>
+        <button id="set-in" title="Set In to playhead (i)">Set In</button>
+        <button id="set-out" title="Set Out to playhead (o)">Set Out</button>
+        <span class="sep"></span>
+        <label class="field">Export
+          <select id="preset"></select>
+        </label>
+        <button id="export" class="primary" title="Export selection (e)">Export clip</button>
+        <span id="est" class="field est"></span>
+        <span id="status" class="status"></span>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

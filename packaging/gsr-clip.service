@@ -1,0 +1,17 @@
+[Unit]
+Description=GSR clip + session recorder
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/Projects/gsr-clip/.venv/bin/gsr-clip start
+Restart=on-failure
+RestartSec=3
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+# Graphical env (WAYLAND_DISPLAY/XDG_RUNTIME_DIR/DBUS_SESSION_BUS_ADDRESS) must be
+# present in the systemd user manager. install.sh runs `systemctl --user
+# import-environment` so portal capture, kdotool and notify-send work.
+
+[Install]
+WantedBy=graphical-session.target

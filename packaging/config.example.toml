@@ -1,0 +1,67 @@
+# gsr-clip configuration. Copy to ~/.config/gsr-clip/config.toml and edit.
+# All keys are optional; unset keys fall back to built-in defaults.
+
+[recording]
+# always_on = true  -> rolling replay buffer runs at all times (instant clips,
+#                      persistent recording icon, ShadowPlay style)
+# always_on = false -> sessions-only: GSR runs only during a Steam game session,
+#                      so the recording icon appears only in-game
+always_on = true
+buffer_seconds = 300
+clip_length = "full"        # "full" (whole buffer) or one of: 10, 30, 60, 300, 600, 1800
+fps = 60
+resolution = "1920x1080"
+frame_rate_mode = "vfr"     # vfr (default) | cfr (guaranteed constant 60fps, best for editors) | content
+audio_codec = "aac"         # aac = best mp4 sharing compatibility (Discord/browsers)
+capture_audio = true
+capture_microphone = true
+portal_token = "~/.local/state/gsr-clip/portal.token"
+
+[paths]
+replays = "~/Videos/GSRClip/replays"
+sessions = "~/Videos/GSRClip/sessions"
+
+[session]
+auto_start = true           # auto-start a session when a Steam game gains focus
+require_steam_game = true   # only auto-start when SteamAppId is present
+auto_stop_on_exit = true    # stop when the watched game PID exits
+stop_on_focus_loss = false  # alt-tab must NOT stop the session
+focus_poll_seconds = 1.0
+pid_poll_seconds = 2.0
+debounce_seconds = 3.0
+
+[hotkeys]
+enabled = true
+clip = "KEY_F9"             # single tap = clip/highlight, double tap = session override
+double_tap_ms = 350
+
+[gamepad]
+enabled = true
+button = "BTN_MODE"         # guide button
+axis = "ABS_Z"              # left trigger
+threshold = 100
+
+[trim]
+padding_seconds = 5.0
+# A highlight marks the moment you reacted to — the play happened a bit earlier.
+# The default export window for a highlight leans backward:
+highlight_pre = 10.0        # seconds before the press
+highlight_post = 2.0        # seconds after the press
+
+[storage]
+# Hard cap on total size of all recordings (replays + sessions + exported clips),
+# in GiB. When exceeded, the oldest recordings are deleted (with their highlight
+# sidecars) until back under the limit. 0 = unlimited.
+max_size_gb = 0.0           # e.g. 50.0 for a 50 GB cap
+keep_recent_seconds = 30.0  # never delete files newer than this (protects active recording)
+
+[notifications]
+session_start = true
+session_stop = true
+clips = false
+highlights = false
+# Sounds play even in fullscreen games where popups are suppressed.
+sound = true
+sound_session_start = "/usr/share/sounds/freedesktop/stereo/service-login.oga"
+sound_session_stop = "/usr/share/sounds/freedesktop/stereo/complete.oga"
+sound_highlight = "/usr/share/sounds/freedesktop/stereo/bell.oga"

@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gsr-clip"
+version = "0.1.0"
+description = "Standalone clip + session recorder built on gpu-screen-recorder (replay buffer, auto-started Steam-gated sessions, highlight bookmarks)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "GPL-3.0-only" }
+authors = [{ name = "dazed" }]
+dependencies = [
+    "evdev>=1.6",
+    # tomllib is stdlib on 3.11+; tomli-w only needed if we ever write TOML.
+    "tomli-w>=1.0",
+]
+
+[project.scripts]
+gsr-clip = "gsr_clip.cli:main"
+gsr-clipd = "gsr_clip.daemon:main"
+
+[tool.setuptools]
+packages = ["gsr_clip"]
+
+[tool.setuptools.package-data]
+gsr_clip = ["web/*.html", "web/*.css", "web/*.js"]
