@@ -58,15 +58,38 @@ async function loadSessions() {
   const list = $("#session-list");
   list.innerHTML = "";
   if (!sessions.length) { list.innerHTML = '<div class="field">No sessions yet.</div>'; return; }
+
+  // The API returns sessions newest-first. Grouping by game while preserving
+  // that order means the game with the most recent session sorts to the top,
+  // and sessions stay newest-first within each game.
+  const groups = new Map();
   for (const s of sessions) {
-    const el = document.createElement("div");
-    el.className = "session";
-    const date = new Date(s.mtime * 1000).toLocaleString();
-    el.innerHTML = `<div class="game">${escapeHtml(s.game)}</div>
-      <div class="sub"><span>${date}</span><span class="badge">${s.highlights.length} \u2605</span></div>
-      <div class="sub"><span>${fmtSize(s.size)}</span></div>`;
-    el.addEventListener("click", () => selectSession(s, el));
-    list.appendChild(el);
+    if (!groups.has(s.game)) groups.set(s.game, []);
+    groups.get(s.game).push(s);
+  }
+
+  for (const [game, items] of groups) {
+    const group = document.createElement("div");
+    group.className = "game-group";
+
+    const header = document.createElement("div");
+    header.className = "group-header";
+    const stars = items.reduce((n, x) => n + x.highlights.length, 0);
+    header.innerHTML = `<span class="group-name">${escapeHtml(game)}</span>
+      <span class="group-meta">${items.length} \u00b7 ${stars} \u2605</span>`;
+    header.addEventListener("click", () => group.classList.toggle("collapsed"));
+    group.appendChild(header);
+
+    for (const s of items) {
+      const el = document.createElement("div");
+      el.className = "session";
+      const date = new Date(s.mtime * 1000).toLocaleString();
+      el.innerHTML = `<div class="sub"><span>${date}</span><span class="badge">${s.highlights.length} \u2605</span></div>
+        <div class="sub"><span>${fmtSize(s.size)}</span></div>`;
+      el.addEventListener("click", () => selectSession(s, el));
+      group.appendChild(el);
+    }
+    list.appendChild(group);
   }
 }
 
