@@ -136,6 +136,21 @@ every save/export and at daemon startup. The file being recorded right now (and
 anything newer than `keep_recent_seconds`) is never deleted. `0` = unlimited.
 Run `gsr-clip prune` to enforce it manually.
 
+### Audio (multiple outputs)
+
+By default gsr-clip captures `default_output` (and `default_input` if the mic
+checkbox is on). To mix **several sinks** — e.g. game audio on your TV plus
+Discord friends on a loopback device — set `recording.audio` to a pipe-separated
+list passed straight to gpu-screen-recorder's `-a` flag:
+
+```toml
+audio = "default_output|device:alsa_output.usb-Shokz_Loop120_....monitor|default_input"
+```
+
+List device names with `gpu-screen-recorder --list-audio-devices`. When `audio`
+is set, it overrides the capture-audio/mic checkboxes (those only apply if
+`audio` is empty). Restart the daemon after changing it.
+
 ### Modes
 
 - `recording.always_on = true` — rolling buffer always running (instant clips, persistent recording icon).

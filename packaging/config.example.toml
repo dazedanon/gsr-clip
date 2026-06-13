@@ -15,6 +15,10 @@ frame_rate_mode = "vfr"     # vfr (default) | cfr (guaranteed constant 60fps, be
 audio_codec = "aac"         # aac = best mp4 sharing compatibility (Discord/browsers)
 capture_audio = true
 capture_microphone = true
+# Mix multiple outputs (PipeWire monitor sinks). List names with:
+#   gpu-screen-recorder --list-audio-devices
+# Example: TV/game audio + a Discord loopback sink + your mic:
+# audio = "default_output|device:alsa_output.usb-Shokz_Loop120_....monitor|default_input"
 portal_token = "~/.local/state/gsr-clip/portal.token"
 
 [paths]

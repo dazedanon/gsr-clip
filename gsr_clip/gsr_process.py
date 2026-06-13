@@ -82,7 +82,10 @@ class GSRProcess:
             "-ac", rec.audio_codec,
         ]
         if rec.capture_audio:
-            if rec.capture_microphone:
+            src = rec.audio.strip()
+            if src:
+                argv += ["-a", src]
+            elif rec.capture_microphone:
                 argv += ["-a", "default_output|default_input"]
             else:
                 argv += ["-a", "default_output"]

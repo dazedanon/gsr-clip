@@ -46,6 +46,10 @@ class RecordingConfig:
     audio_codec: str = "aac"  # aac is widely compatible for mp4 sharing
     capture_audio: bool = True
     capture_microphone: bool = True
+    # Optional override for gpu-screen-recorder -a. Pipe-separated sources are
+    # mixed together (see: gpu-screen-recorder --list-audio-devices). When empty,
+    # uses default_output and optionally default_input from the booleans above.
+    audio: str = ""
     portal_token: str = "~/.local/state/gsr-clip/portal.token"
 
     @property

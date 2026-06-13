@@ -205,6 +205,7 @@ class MainWindow(QMainWindow):
         ))
         f.addRow("Capture system audio", self._check("recording.capture_audio", r.capture_audio))
         f.addRow("Capture microphone", self._check("recording.capture_microphone", r.capture_microphone))
+        f.addRow("Audio sources (-a)", self._text("recording.audio", r.audio))
         return w
 
     def _tab_sessions(self) -> QWidget:
