@@ -108,6 +108,9 @@ gsr-clip prune                        # delete oldest recordings to fit the cap
 - tabbed editor for every config option (Recording / Sessions / Storage / Trim /
   Input / Notifications); **Save** writes `~/.config/gsr-clip/config.toml` and
   offers to restart the daemon to apply changes
+- **Recording → Audio to capture** — checklist auto-populated from
+  `gpu-screen-recorder --list-audio-devices` (pick TV output, loopback sinks,
+  mic, etc.; no manual pipe strings)
 - **Prune now** button on the Storage tab
 - **System tray** icon — left-click toggles the window; right-click for Open
   Trimmer / Start / Stop / Restart / Quit. Closing the window quits the GUI

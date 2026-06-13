@@ -1,7 +1,7 @@
 # Maintainer: dazed <dazed@users.noreply.github.com>
 pkgname=gsr-clip
 pkgver=0.1.0
-pkgrel=1
+pkgrel=3
 pkgdesc="Clip + session recorder on gpu-screen-recorder: replay buffer, Steam-gated auto sessions, highlight viewer + GUI"
 arch=('any')
 url="https://github.com/dazedanon/gsr-clip"

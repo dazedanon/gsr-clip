@@ -27,6 +27,8 @@ try:
         QHBoxLayout,
         QLabel,
         QLineEdit,
+        QListWidget,
+        QListWidgetItem,
         QMainWindow,
         QMenu,
         QMessageBox,
@@ -45,6 +47,7 @@ except ModuleNotFoundError:  # pragma: no cover
     raise SystemExit(1)
 
 from . import storage
+from .audio_devices import default_selection, join_audio_sources, list_devices, parse_audio_string
 from .cli import _send
 from .config import CONFIG_PATH, Config, load_config, save_config
 
@@ -71,6 +74,68 @@ def _systemctl(*args: str) -> subprocess.CompletedProcess:
 
 def _service_active() -> bool:
     return _systemctl("is-active").stdout.strip() == "active"
+
+
+class AudioSourcePicker(QWidget):
+    """Checklist of gpu-screen-recorder audio sources (-a), auto-populated."""
+
+    def __init__(self, audio: str, capture_audio: bool, capture_microphone: bool, parent=None):
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
+        self._list = QListWidget()
+        self._list.setMinimumHeight(140)
+        layout.addWidget(self._list)
+
+        row = QHBoxLayout()
+        self._hint = QLabel()
+        self._hint.setStyleSheet("color: #888; font-size: 11px;")
+        row.addWidget(self._hint, 1)
+        refresh = QPushButton("Refresh")
+        refresh.clicked.connect(lambda: self.reload(audio=self.audio_string()))
+        row.addWidget(refresh)
+        layout.addLayout(row)
+
+        saved = parse_audio_string(audio) or default_selection(capture_audio, capture_microphone)
+        self.reload(saved)
+
+    def reload(self, saved: list[str] | None = None, audio: str | None = None) -> None:
+        if saved is None:
+            saved = parse_audio_string(audio or "")
+        saved_set = set(saved)
+        self._list.clear()
+        devices = list_devices()
+        if not devices:
+            self._hint.setText("gpu-screen-recorder not found or no devices listed")
+            return
+        matched: set[str] = set()
+        for source_id, label in devices:
+            item = QListWidgetItem(label)
+            item.setData(Qt.UserRole, source_id)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Checked if source_id in saved_set else Qt.Unchecked)
+            self._list.addItem(item)
+            if source_id in saved_set:
+                matched.add(source_id)
+        extra = saved_set - matched
+        for source_id in sorted(extra):
+            item = QListWidgetItem(f"{source_id} (not connected)")
+            item.setData(Qt.UserRole, source_id)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Checked)
+            self._list.addItem(item)
+        n = sum(1 for i in range(self._list.count()) if self._list.item(i).checkState() == Qt.Checked)
+        self._hint.setText(f"{n} selected — mixed together in the recording")
+
+    def audio_string(self) -> str:
+        sources: list[str] = []
+        for i in range(self._list.count()):
+            item = self._list.item(i)
+            if item.checkState() == Qt.Checked:
+                sources.append(item.data(Qt.UserRole))
+        return join_audio_sources(sources)
 
 
 class MainWindow(QMainWindow):
@@ -203,9 +268,9 @@ class MainWindow(QMainWindow):
         f.addRow("Audio codec", self._combo(
             "recording.audio_codec", [("aac", "aac"), ("opus", "opus")], r.audio_codec,
         ))
-        f.addRow("Capture system audio", self._check("recording.capture_audio", r.capture_audio))
-        f.addRow("Capture microphone", self._check("recording.capture_microphone", r.capture_microphone))
-        f.addRow("Audio sources (-a)", self._text("recording.audio", r.audio))
+        picker = AudioSourcePicker(r.audio, r.capture_audio, r.capture_microphone)
+        self._fields["recording.audio"] = picker
+        f.addRow("Audio to capture", picker)
         return w
 
     def _tab_sessions(self) -> QWidget:
@@ -336,6 +401,13 @@ class MainWindow(QMainWindow):
         for key, widget in self._fields.items():
             section, attr = key.split(".", 1)
             obj = getattr(self.cfg, section)
+            if isinstance(widget, AudioSourcePicker):
+                if attr == "audio":
+                    sources = parse_audio_string(widget.audio_string())
+                    setattr(obj, "audio", join_audio_sources(sources))
+                    obj.capture_audio = bool(sources)
+                    obj.capture_microphone = "default_input" in sources
+                continue
             if isinstance(widget, QComboBox):
                 value = widget.currentData()
             elif isinstance(widget, QCheckBox):
