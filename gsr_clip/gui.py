@@ -47,7 +47,7 @@ except ModuleNotFoundError:  # pragma: no cover
     raise SystemExit(1)
 
 from . import storage
-from .audio_devices import default_selection, join_audio_sources, list_devices, parse_audio_string
+from .audio_devices import default_selection, device_kind, format_device_label, join_audio_sources, list_devices, parse_audio_string
 from .cli import _send
 from .config import CONFIG_PATH, Config, load_config, save_config
 
@@ -111,9 +111,10 @@ class AudioSourcePicker(QWidget):
             self._hint.setText("gpu-screen-recorder not found or no devices listed")
             return
         matched: set[str] = set()
-        for source_id, label in devices:
-            item = QListWidgetItem(label)
+        for source_id, label, kind in devices:
+            item = QListWidgetItem(format_device_label(source_id, label))
             item.setData(Qt.UserRole, source_id)
+            item.setToolTip(f"{kind} — {source_id}")
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
             item.setCheckState(Qt.Checked if source_id in saved_set else Qt.Unchecked)
             self._list.addItem(item)
@@ -121,8 +122,10 @@ class AudioSourcePicker(QWidget):
                 matched.add(source_id)
         extra = saved_set - matched
         for source_id in sorted(extra):
-            item = QListWidgetItem(f"{source_id} (not connected)")
+            kind = device_kind(source_id)
+            item = QListWidgetItem(f"[{kind}] {source_id} (not connected)")
             item.setData(Qt.UserRole, source_id)
+            item.setToolTip(source_id)
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
             item.setCheckState(Qt.Checked)
             self._list.addItem(item)

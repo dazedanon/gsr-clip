@@ -5,13 +5,35 @@ from __future__ import annotations
 import shutil
 import subprocess
 
+DeviceKind = str  # "Output" | "Input"
 
-def list_devices() -> list[tuple[str, str]]:
-    """Return ``[(source_id, label), ...]`` from ``gpu-screen-recorder --list-audio-devices``.
 
-    *source_id* is what GSR expects (``default_output``, ``default_input``,
-    ``device:name``, …). *label* is the human-readable name from the tool.
-    """
+def device_kind(source_id: str, label: str = "") -> DeviceKind:
+    """Classify a GSR audio source as Input or Output."""
+    if source_id in ("default_output",):
+        return "Output"
+    if source_id in ("default_input",):
+        return "Input"
+    name = source_id.removeprefix("device:")
+    if name.startswith("alsa_output.") or name.endswith(".monitor"):
+        return "Output"
+    if name.startswith("alsa_input."):
+        return "Input"
+    if label.startswith("Monitor of "):
+        return "Output"
+    # app:firefox etc. — treated as output-side capture
+    if source_id.startswith("app:") or source_id.startswith("app-inverse:"):
+        return "Output"
+    return "Output" if "input" not in source_id.lower() else "Input"
+
+
+def format_device_label(source_id: str, label: str) -> str:
+    kind = device_kind(source_id, label)
+    return f"[{kind}] {label}"
+
+
+def list_devices() -> list[tuple[str, str, DeviceKind]]:
+    """Return ``[(source_id, label, kind), ...]`` from ``--list-audio-devices``."""
     gsr = shutil.which("gpu-screen-recorder")
     if not gsr:
         return []
@@ -27,13 +49,23 @@ def list_devices() -> list[tuple[str, str]]:
         return []
     if proc.returncode != 0:
         return []
-    out: list[tuple[str, str]] = []
+    out: list[tuple[str, str, DeviceKind]] = []
     for line in proc.stdout.splitlines():
         line = line.strip()
         if not line or "|" not in line:
             continue
         source_id, label = line.split("|", 1)
-        out.append((source_id.strip(), label.strip()))
+        source_id = source_id.strip()
+        label = label.strip()
+        out.append((source_id, label, device_kind(source_id, label)))
+    # Outputs first, then inputs; defaults at the top of each group.
+    def sort_key(item: tuple[str, str, DeviceKind]) -> tuple[int, str]:
+        sid, _, kind = item
+        kind_order = 0 if kind == "Output" else 1
+        default_first = 0 if sid.startswith("default_") else 1
+        return (kind_order, default_first, sid)
+
+    out.sort(key=sort_key)
     return out
 
 
